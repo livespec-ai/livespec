@@ -26,7 +26,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from livespec.doctor.static.copier_template_workflow_coverage import REQUIRED_WORKFLOW_FILES
+from livespec.doctor.static.copier_template_workflow_coverage import required_workflow_files
 
 __all__ = [
     "critique",
@@ -54,7 +54,7 @@ def seed_required_workflow_files(*, project_root: Path) -> None:
     """
     workflows_dir = project_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
-    for name in REQUIRED_WORKFLOW_FILES:
+    for name in required_workflow_files():
         path = workflows_dir / name
         if not path.exists():
             _ = path.write_text("# e2e fixture workflow stub\n", encoding="utf-8")

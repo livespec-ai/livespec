@@ -34,12 +34,11 @@ consumer's `.github/workflows/`. Each fail finding names the
 specific missing file(s) and directs the user to run
 `copier update --vcs-ref=master` to re-sync from the template.
 
-`REQUIRED_WORKFLOW_FILES` is the shared projection of the canonical list in
-`non-functional-requirements.md`. When the core specification is present, the
-invariant reads that list directly on every run, so editing the specification
-immediately changes the workflow files the invariant requires. Packaged plugin
-artifacts retain the checked projection because they ship the scripts but not
-the core specification tree.
+`required_workflow_files()` is the shared projection of the canonical list in
+`non-functional-requirements.md`. The invariant and test-fixture helpers call
+it, so editing the specification immediately changes the workflow files they
+require. Packaged plugin artifacts retain a checked fallback because they ship
+the scripts but not the core specification tree.
 
 When `.github/workflows/` is absent entirely the check fires a
 single `fail` finding naming every required file, since the
@@ -60,13 +59,13 @@ from livespec.errors import LivespecError
 from livespec.schemas.dataclasses.finding import Finding
 from livespec.types import CheckId, SpecRoot
 
-__all__: list[str] = ["REQUIRED_WORKFLOW_FILES", "SLUG", "run"]
+__all__: list[str] = ["REQUIRED_WORKFLOW_FILES", "SLUG", "required_workflow_files", "run"]
 
 
 SLUG: CheckId = CheckId("doctor-copier-template-workflow-coverage")
 
 
-REQUIRED_WORKFLOW_FILES: tuple[str, ...] = (
+_PACKAGED_REQUIRED_WORKFLOW_FILES: tuple[str, ...] = (
     "ci.yml",
     "copier-update-drift.yml",
     "auto-enable-merge.yml",
@@ -85,16 +84,22 @@ _CANONICAL_SPEC_PATH = (
 )
 
 
-def _required_workflow_files() -> tuple[str, ...]:
+def required_workflow_files() -> tuple[str, ...]:
     """Read the canonical copier workflow list when the core spec is available."""
     if not _CANONICAL_SPEC_PATH.is_file():  # pragma: no cover - packaged-plugin path
-        return REQUIRED_WORKFLOW_FILES
+        return _PACKAGED_REQUIRED_WORKFLOW_FILES
     spec_text = _CANONICAL_SPEC_PATH.read_text(encoding="utf-8")
     section = spec_text.split(_COPIER_TEMPLATE_SECTION, maxsplit=1)[1].split(
         _COPIER_TEMPLATE_LIST_END,
         maxsplit=1,
     )[0]
     return tuple(_WORKFLOW_BULLET.findall(section))
+
+
+# Compatibility projection for callers that need a module-level value. New
+# callers should use required_workflow_files() so source-tree runs re-read the
+# specification for every fixture or invariant evaluation.
+REQUIRED_WORKFLOW_FILES: tuple[str, ...] = required_workflow_files()
 
 
 def _pass(*, ctx: DoctorContext, message: str) -> Finding:
@@ -150,14 +155,14 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
 
     For consumer roots (marker present) the check walks
     `<project_root>/.github/workflows/` and compares its file set
-    against `REQUIRED_WORKFLOW_FILES`. When every required file is
+    against `required_workflow_files()`. When every required file is
     present, the check passes. When one or more required files are
     missing — including the case where `.github/workflows/` does
     not exist at all — the check fires a single `fail` finding
     naming the missing files and directing the user to
     `copier update --vcs-ref=master`.
     """
-    required_workflow_files = _required_workflow_files()
+    required_files = required_workflow_files()
     copier_answers = ctx.project_root / ".copier-answers.yml"
     if not copier_answers.exists():
         return _skipped(
@@ -172,7 +177,7 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
         )
     workflows_dir = ctx.project_root / ".github" / "workflows"
     if not workflows_dir.is_dir():
-        missing = list(required_workflow_files)
+        missing = list(required_files)
         missing_joined = ", ".join(missing)
         return _fail(
             ctx=ctx,
@@ -187,13 +192,13 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
             ),
         )
     present_names = {entry.name for entry in workflows_dir.iterdir() if entry.is_file()}
-    missing = [name for name in required_workflow_files if name not in present_names]
+    missing = [name for name in required_files if name not in present_names]
     if not missing:
         return _pass(
             ctx=ctx,
             message=(
                 f"copier-template-workflow-coverage: all "
-                f"{len(required_workflow_files)} required workflow file(s) "
+                f"{len(required_files)} required workflow file(s) "
                 f"are present in `.github/workflows/`"
             ),
         )

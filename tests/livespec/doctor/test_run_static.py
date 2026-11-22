@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 from livespec.doctor import run_static
-from livespec.doctor.static.copier_template_workflow_coverage import REQUIRED_WORKFLOW_FILES
+from livespec.doctor.static.copier_template_workflow_coverage import required_workflow_files
 
 __all__: list[str] = []
 
@@ -53,7 +53,7 @@ def _seed_required_workflow_files(*, project_root: Path) -> None:
     """
     workflows_dir = project_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
-    for name in REQUIRED_WORKFLOW_FILES:
+    for name in required_workflow_files():
         _ = (workflows_dir / name).write_text(
             "# test fixture workflow stub\n",
             encoding="utf-8",
