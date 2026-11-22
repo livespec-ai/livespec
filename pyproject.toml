@@ -235,6 +235,9 @@ supervisor_entry_files = [
     ".claude-plugin/scripts/livespec/doctor/run_static.py",
     ".claude-plugin/scripts/bin/_bootstrap.py",
     ".claude/hooks/livespec_footgun_guard.py",
+    "dev-tooling/gh_feature_surfaces.py",
+    "dev-tooling/reap_stale_worktrees.py",
+    "dev-tooling/refresh_tenant_repos.py",
 ]
 covered_trees = [
     ".claude-plugin/scripts/livespec",
