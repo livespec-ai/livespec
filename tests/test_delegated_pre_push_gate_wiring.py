@@ -31,22 +31,14 @@ rather than out of a copy of it here:
    there and must sit AFTER the delegation branch: ahead of it, a delegating
    host would run the aggregate it had just delegated.
 
-4. **This host's own answer.** Asserted as the AGREEMENT between the probe's
-   exit status and whether this host can read the gates kubeconfig, which is
-   non-vacuous on either kind of host and so needs no skip. From a Fabro
-   sandbox, which holds no credential, the probe must refuse delegation AND say
-   that the push gated locally — *The host* requires a non-delegating host to
-   report as much, and a silent refusal is the one shape an operator cannot
-   tell apart from a delegated pass afterwards. From the VPS, which does hold
-   the credential, the same assertion reads the other way and requires the
-   probe to select delegation.
-
-   The local-gating report is asserted as the one IMPLICATION "this host
-   delegates, or it said it gated locally" rather than as a host-conditional
-   branch. The two say the same thing, and the implication says it on one host:
-   a branch has an arm that no single host can take, which would leave this
-   test short of the full coverage the repository requires of its own tests and
-   would invite a skip where no assertion is actually inapplicable.
+4. **The probe's answer, with the host fixed.** The gates credential path and
+   the delegated-gate-Job marker are set by the test, never read from the host it
+   happens to run on, so the verdict is identical on a developer host, in a
+   janitor pod and inside a delegated gate Job. With no readable credential the
+   probe must refuse delegation AND say that the push gated locally — *The host*
+   requires a non-delegating host to report as much, and a silent refusal is the
+   one shape an operator cannot tell apart from a delegated pass afterwards. With
+   a readable credential it must select delegation.
 
 The probe is driven IN-PROCESS rather than spawned, per the shared
 `tests_no_subprocess_spawn` gate: `main()` reads its command from `sys.argv`,
@@ -63,7 +55,7 @@ from pathlib import Path
 import pytest
 from livespec_dev_tooling import gate_remote_delegate
 from livespec_dev_tooling.config import load_delegated_gate
-from livespec_dev_tooling.gate_credential import gates_kubeconfig_readable
+from livespec_dev_tooling.gate_credential import GATES_KUBECONFIG_ENV
 
 __all__: list[str] = []
 
@@ -183,22 +175,51 @@ def test_local_fall_through_runs_the_gate_recipe_on_the_pushing_host() -> None:
     )
 
 
-def test_probe_agrees_with_this_host_and_reports_a_local_gating(
-    *, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The probe delegates exactly when this host can read the credential."""
+def _run_probe(
+    *, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], kubeconfig: Path
+) -> tuple[int, str]:
+    """Run the `enabled` probe in-process with the gates credential and context fixed.
+
+    The credential path and the delegated-gate-Job marker are set here rather than
+    read from the host, so the answer is the same on a developer host, in a
+    janitor pod and inside a delegated gate Job, where `LIVESPEC_GATE_CONTEXT` is
+    set and no kubeconfig exists.
+    """
     monkeypatch.chdir(_REPO_ROOT)
+    monkeypatch.delenv("LIVESPEC_GATE_CONTEXT", raising=False)
+    monkeypatch.setenv(GATES_KUBECONFIG_ENV, str(kubeconfig))
     monkeypatch.setattr(gate_remote_delegate.sys, "argv", ["gate_remote_delegate", "enabled"])
     code = gate_remote_delegate.main()
-    reported = capsys.readouterr().err
-    readable = gates_kubeconfig_readable()
-    assert (code == 0) is readable, (
-        f"the delegated-gate probe exited {code} while this host's gates "
-        f"kubeconfig readability is {readable}; a push must delegate from "
-        "exactly the hosts that hold the credential. Reported: " + reported
+    return code, capsys.readouterr().err
+
+
+def test_probe_reports_a_local_gating_when_no_gates_credential_is_readable(
+    *, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A host holding no credential refuses delegation AND says the push gated locally."""
+    code, reported = _run_probe(
+        monkeypatch=monkeypatch, capsys=capsys, kubeconfig=tmp_path / "absent-kubeconfig"
     )
-    assert readable or gate_remote_delegate.GATED_LOCALLY in reported, (
-        "this host holds no gates credential and the probe refused delegation "
-        "without reporting that the push gates locally, so a locally-gated push "
-        "is indistinguishable from a delegated one afterwards. Reported: " + reported
+    assert code == 1, (
+        f"the probe exited {code} for a host holding no gates kubeconfig; it must "
+        "refuse delegation. Reported: " + reported
+    )
+    assert gate_remote_delegate.GATED_LOCALLY in reported, (
+        "the probe refused delegation without reporting that the push gates "
+        "locally, so a locally-gated push is indistinguishable from a delegated "
+        "one afterwards. Reported: " + reported
+    )
+
+
+def test_probe_delegates_when_a_gates_credential_is_readable(
+    *, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A host holding a readable credential selects delegation."""
+    credential = tmp_path / "gates-kubeconfig"
+    credential.write_text("apiVersion: v1\n", encoding="utf-8")
+    code, reported = _run_probe(monkeypatch=monkeypatch, capsys=capsys, kubeconfig=credential)
+    assert code == 0, (
+        f"the probe exited {code} for a host holding a readable gates kubeconfig; "
+        "a push must delegate from exactly the hosts that hold the credential. "
+        "Reported: " + reported
     )
