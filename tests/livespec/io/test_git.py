@@ -44,7 +44,7 @@ from livespec.errors import LivespecError
 from livespec.io import git as io_git
 from livespec.parse.git_author import GitIdentity
 from livespec.spec_governance.pr_merge_derivation import LOCAL_DIFF_ARGS
-from returns.io import IOResult
+from returns.io import IOResult, IOSuccess
 from returns.result import Failure, Success
 from returns.unsafe import unsafe_perform_io
 
@@ -1396,3 +1396,22 @@ def test_list_subtrees_at_head_returns_failure_when_no_head(
             return
         case _:
             raise AssertionError(f"expected IOFailure, got {result!r}")
+
+
+def test_list_ignored_paths_returns_only_gitignored_paths(*, tmp_path: Path) -> None:
+    """list_ignored_paths applies the repository's effective ignore rules."""
+    _git_init_with_user(cwd=tmp_path, name="Test User", email="test@example.com")
+    _ = (tmp_path / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    ignored = scratch / "ignored.py"
+    _ = ignored.write_text("x = 1\n", encoding="utf-8")
+    included = tmp_path / "included.py"
+    _ = included.write_text("x = 1\n", encoding="utf-8")
+
+    result = io_git.list_ignored_paths(
+        project_root=tmp_path,
+        paths=[ignored, included],
+    )
+
+    assert result == IOSuccess(frozenset({ignored}))

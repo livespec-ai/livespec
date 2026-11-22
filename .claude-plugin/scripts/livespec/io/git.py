@@ -74,6 +74,7 @@ from livespec.io._git_author import (
     get_git_user,
     list_commit_authors,
 )
+from livespec.io._git_ignored import list_ignored_paths
 from livespec.io._git_pull_request import diff_name_only, merge_base
 from livespec.io._git_remote import list_remote_branches
 from livespec.io._git_worktrees import Worktree, list_worktrees
@@ -89,6 +90,7 @@ __all__: list[str] = [
     "is_git_repo",
     "list_at_head",
     "list_commit_authors",
+    "list_ignored_paths",
     "list_merged_branches",
     "list_remote_branches",
     "list_status_porcelain",

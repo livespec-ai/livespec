@@ -20,6 +20,7 @@ violation in sorted path order.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -203,6 +204,26 @@ def test_run_ignores_section_marker_in_excluded_segments(*, tmp_path: Path) -> N
         "# Per " + _cite(heading="Ignored") + "\n",
         encoding="utf-8",
     )
+    assert mod.run(ctx=ctx) == IOSuccess(_pass_finding(spec_root=spec_root))
+
+
+def test_run_ignores_section_citation_in_gitignored_directory(*, tmp_path: Path) -> None:
+    """run(ctx) does not scan source below a Git-ignored directory."""
+    ctx, project_root, spec_root = _ctx(tmp_path=tmp_path)
+    _ = subprocess.run(
+        ["git", "init", "--quiet", str(project_root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _ = (project_root / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+    ignored_dir = project_root / "scratch"
+    ignored_dir.mkdir()
+    _ = (ignored_dir / "citation.py").write_text(
+        "# Per " + _cite(heading="Ignored by Git") + "\n",
+        encoding="utf-8",
+    )
+
     assert mod.run(ctx=ctx) == IOSuccess(_pass_finding(spec_root=spec_root))
 
 

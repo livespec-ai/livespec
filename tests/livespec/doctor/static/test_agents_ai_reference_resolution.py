@@ -20,6 +20,7 @@ first unresolved reference in sorted `AGENTS.md` order.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -174,6 +175,20 @@ def test_run_ignores_dangling_reference_in_archive(
     archive = tmp_path / "archive"
     archive.mkdir()
     _ = (archive / "AGENTS.md").write_text("Refs `.ai/missing.md`.\n", encoding="utf-8")
+    assert mod.run(ctx=_ctx(tmp_path=tmp_path)) == IOSuccess(_pass_finding(tmp_path=tmp_path))
+
+
+def test_run_ignores_dangling_reference_in_gitignored_directory(*, tmp_path: Path) -> None:
+    """run(ctx) does not scan AGENTS.md below a Git-ignored directory."""
+    _ = subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    _ = (tmp_path / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    _ = (scratch / "AGENTS.md").write_text(
+        "Refs `.ai/missing.md`.\n",
+        encoding="utf-8",
+    )
+
     assert mod.run(ctx=_ctx(tmp_path=tmp_path)) == IOSuccess(_pass_finding(tmp_path=tmp_path))
 
 
