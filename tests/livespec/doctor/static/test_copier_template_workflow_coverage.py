@@ -127,6 +127,34 @@ def test_copier_template_workflow_coverage_passes_when_every_required_file_prese
     assert result == IOSuccess(expected)
 
 
+def test_copier_template_workflow_coverage_fails_when_release_park_is_missing(
+    *,
+    tmp_path: Path,
+) -> None:
+    """A copier consumer missing the spec-listed release park must fail."""
+    project_root, spec_root = _seed_project(tmp_path=tmp_path)
+    _seed_workflows(project_root=project_root, names=REQUIRED_WORKFLOW_FILES)
+
+    ctx = DoctorContext(project_root=project_root, spec_root=spec_root)
+    result = copier_template_workflow_coverage.run(ctx=ctx)
+    expected = Finding(
+        check_id="doctor-copier-template-workflow-coverage",
+        status="fail",
+        message=(
+            "copier-template-workflow-coverage: "
+            "1 required workflow file(s) missing from "
+            "`.github/workflows/`: release-park.yml. Corrective action: run "
+            "`copier update --vcs-ref=master` to re-sync the copier template (see "
+            '`non-functional-requirements.md` §"Shared content sync — copier template" for '
+            "the canonical required-file list)."
+        ),
+        path=None,
+        line=None,
+        spec_root=str(spec_root),
+    )
+    assert result == IOSuccess(expected)
+
+
 def test_copier_template_workflow_coverage_passes_when_extra_files_present(
     *,
     tmp_path: Path,
