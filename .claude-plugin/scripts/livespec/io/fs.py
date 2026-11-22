@@ -15,6 +15,7 @@ payload to derive exit codes.
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -141,25 +142,31 @@ def _raw_list_tree(*, root: Path, exclude_top_level: frozenset[str]) -> list[Pat
     file whose path descends through an immediate child directory
     of `root` whose name is in `exclude_top_level`. The returned
     paths are sorted for deterministic ordering so callers don't
-    need to re-sort. Symlinks are followed only as `rglob` follows
-    them (it does not recurse into symlinked directories).
+    need to re-sort. Symlinks are not followed as directories. An
+    entry whose type cannot be examined (for example, a symlink to
+    an inaccessible target) is skipped so one unreadable entry does
+    not make an otherwise readable tree unavailable.
 
-    `Path.rglob` silently yields nothing for a missing or
-    non-directory `root`; an explicit guard raises so the public
+    An explicit root guard raises so the public
     seam maps the precondition failure to PreconditionError,
     matching `list_dir`'s missing-path contract.
     """
     if not root.is_dir():
         raise FileNotFoundError(f"list_tree: root is not a directory: {root}")
     out: list[Path] = []
-    for candidate in sorted(root.rglob("*")):
-        if not candidate.is_file():
-            continue
-        first_segment = candidate.relative_to(root).parts[0]
-        if first_segment in exclude_top_level:
-            continue
-        out.append(candidate)
-    return out
+    for directory_name, directory_names, file_names in os.walk(root, followlinks=False):
+        directory = Path(directory_name)
+        if directory == root:
+            directory_names[:] = [name for name in directory_names if name not in exclude_top_level]
+        directory_names.sort()
+        for file_name in sorted(file_names):
+            candidate = directory / file_name
+            try:
+                if candidate.is_file():
+                    out.append(candidate)
+            except OSError:
+                continue
+    return sorted(out)
 
 
 def list_tree(

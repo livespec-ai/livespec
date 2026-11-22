@@ -57,7 +57,7 @@ from returns.io import IOResult, IOSuccess
 
 from livespec.context import DoctorContext
 from livespec.errors import LivespecError
-from livespec.io import fs
+from livespec.io import fs, git
 from livespec.schemas.dataclasses.finding import Finding
 from livespec.types import CheckId, SpecRoot
 
@@ -334,15 +334,26 @@ def _walk_scan_set(*, ctx: DoctorContext) -> IOResult[list[Path], LivespecError]
 
     Uses `fs.list_tree` to enumerate the project tree (excluding the
     obvious top-level non-source dirs plus the spec-root basename),
-    then filters to the source / `SKILL.md` scan set with the
-    per-segment exclusions applied.
+    removes files excluded by the project's Git ignore rules, then
+    filters to the source / `SKILL.md` scan set with the per-segment
+    exclusions applied.
     """
     exclude_top_level = _EXCLUDED_TOP_LEVEL | {ctx.spec_root.name}
     return fs.list_tree(
         root=ctx.project_root,
         exclude_top_level=frozenset(exclude_top_level),
-    ).map(
-        lambda files: [f for f in files if _is_in_scan_set(path=f, spec_root=ctx.spec_root)],
+    ).bind(
+        lambda files: git.list_ignored_paths(
+            project_root=ctx.project_root,
+            paths=files,
+        ).map(
+            lambda ignored: [
+                file_path
+                for file_path in files
+                if file_path not in ignored
+                and _is_in_scan_set(path=file_path, spec_root=ctx.spec_root)
+            ],
+        ),
     )
 
 

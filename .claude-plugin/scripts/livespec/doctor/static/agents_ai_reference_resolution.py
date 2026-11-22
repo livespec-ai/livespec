@@ -55,7 +55,7 @@ from returns.io import IOResult, IOSuccess
 
 from livespec.context import DoctorContext
 from livespec.errors import LivespecError
-from livespec.io import fs
+from livespec.io import fs, git
 from livespec.schemas.dataclasses.finding import Finding
 from livespec.types import CheckId, SpecRoot
 
@@ -272,14 +272,19 @@ def _walk_project_files(*, ctx: DoctorContext) -> IOResult[list[Path], LivespecE
     """List every non-excluded file under `project_root` in sorted order.
 
     The single walk excludes the obvious top-level non-source dirs plus
-    the spec-root basename; the returned list serves BOTH as the
-    `AGENTS.md` discovery set and (as a frozenset) as the reference
-    resolution set.
+    the spec-root basename and paths excluded by the project's Git ignore
+    rules; the returned list serves BOTH as the `AGENTS.md` discovery set
+    and (as a frozenset) as the reference resolution set.
     """
     exclude_top_level = _EXCLUDED_TOP_LEVEL | {ctx.spec_root.name}
     return fs.list_tree(
         root=ctx.project_root,
         exclude_top_level=frozenset(exclude_top_level),
+    ).bind(
+        lambda files: git.list_ignored_paths(
+            project_root=ctx.project_root,
+            paths=files,
+        ).map(lambda ignored: [file_path for file_path in files if file_path not in ignored]),
     )
 
 

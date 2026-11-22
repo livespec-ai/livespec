@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from livespec.errors import PreconditionError
 from livespec.io import fs
 from returns.io import IOSuccess
@@ -285,6 +286,32 @@ def test_fs_list_tree_returns_sorted_files_excluding_top_level_dirs(
             root / "spec.md",
         ],
     )
+
+
+def test_fs_list_tree_skips_entry_that_cannot_be_statted(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """list_tree retains readable files when one entry cannot be examined."""
+    root = tmp_path / "root"
+    root.mkdir()
+    readable = root / "readable.py"
+    _ = readable.write_text("x = 1\n", encoding="utf-8")
+    unreadable = root / "unreadable"
+    _ = unreadable.symlink_to("/inaccessible-target")
+    dangling = root / "dangling"
+    _ = dangling.symlink_to("/missing-target")
+    original_is_file = Path.is_file
+
+    def _is_file_or_denied(path: Path) -> bool:
+        if path == unreadable:
+            raise PermissionError("cannot stat target")
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", _is_file_or_denied)
+
+    assert fs.list_tree(root=root, exclude_top_level=frozenset()) == IOSuccess([readable])
 
 
 def test_fs_list_tree_returns_precondition_error_on_missing_root(

@@ -39,6 +39,7 @@ def _raw_run_subprocess(
     *,
     argv: list[str],
     cwd: Path | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Decorator-lifted call into subprocess.run with stdout/stderr capture.
 
@@ -50,7 +51,8 @@ def _raw_run_subprocess(
     IOSuccess track — the SUBPROCESS RAN; the IO operation
     succeeded; the caller folds returncode into its own railway.
 
-    `cwd` is the optional working directory for the child process.
+    `cwd` is the optional working directory for the child process;
+    `input_text`, when supplied, is passed on standard input.
     The git facade pins repo scope via `git -C <path>`; the gh
     facade lacks an equivalent flag and instead relies on the
     inherited cwd to resolve the local origin remote, so the gh
@@ -66,6 +68,7 @@ def _raw_run_subprocess(
         text=True,
         check=False,
         cwd=cwd,
+        input=input_text,
     )
 
 
@@ -73,6 +76,7 @@ def run_subprocess(
     *,
     argv: list[str],
     cwd: Path | None = None,
+    input_text: str | None = None,
 ) -> IOResult[subprocess.CompletedProcess[str], LivespecError]:
     """Run a subprocess and return its CompletedProcess on the IO track.
 
@@ -93,9 +97,10 @@ def run_subprocess(
     is on the wrapper's own railway, not the io boundary.
 
     `cwd` is the optional working directory for the child process;
-    None inherits the parent process's cwd. The gh facade pins
+    None inherits the parent process's cwd. `input_text`, when supplied,
+    is passed on standard input. The gh facade pins
     repo scope via `cwd=project_root` since gh lacks a `-C` flag.
     """
-    return _raw_run_subprocess(argv=argv, cwd=cwd).alt(
+    return _raw_run_subprocess(argv=argv, cwd=cwd, input_text=input_text).alt(
         lambda exc: PreconditionError(f"proc.run_subprocess: {exc}"),
     )
