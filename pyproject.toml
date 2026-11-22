@@ -297,6 +297,7 @@ subprocess_spawn_allowlist = [
     "tests/dev-tooling/checks/test_copier_template_smoke.py",
     "tests/dev-tooling/checks/test_schema_dataclass_pairing.py",
     "tests/e2e/test_doctor_fail_then_fix.py",
+    "tests/test_pytest_cov_bare_spelling.py",
 ]
 
 # ---------------------------------------------------------------------------
@@ -646,6 +647,10 @@ addopts = [
     # module collisions. Recommended modern pytest import mode; no
     # `__init__.py` files needed in the `tests/` tree.
     "--import-mode=importlib",
+    # pytest-cov only gives subprocesses the branch-coverage configuration
+    # when it is explicitly named. Keeping it in addopts makes bare --cov
+    # runs safe too, while remaining inert for runs without --cov.
+    "--cov-config=pyproject.toml",
 ]
 markers = [
     "mock_only: test runs only in mock tier (LIVESPEC_E2E_HARNESS=mock); skipped in real tier",
