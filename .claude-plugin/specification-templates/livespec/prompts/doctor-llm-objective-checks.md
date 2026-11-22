@@ -85,16 +85,19 @@ When the applicability predicate holds, discover the candidate
 PR set by invoking:
 
 ```
-gh pr list --state open --head 'spec/*' --json number,state,statusCheckRollup,headRefName,createdAt,updatedAt,mergeable
+gh pr list --state open --limit 1000 --json number,state,statusCheckRollup,headRefName,createdAt,updatedAt,mergeable --jq '[.[] | select(.headRefName | startswith("spec/"))]'
 ```
 
-The `--head 'spec/*'` filter scopes the query to spec-revise
-branches per the livespec branching convention. The `--json`
-projection enumerates the fields needed for the per-PR
-classification below. The dimension processes each returned PR
-independently; a PR MAY produce zero or one finding per the
-classification below (never more than one — the classifications
-are mutually exclusive by construction).
+The query lists every open PR, then filters its `headRefName`
+client-side for the `spec/` prefix required by the livespec branching
+convention. The `--json` projection enumerates the fields needed for
+the per-PR classification below. When the filter returns zero PRs,
+surface the structured `info`-level log line `info: open-spec-pr
+dimension checked — no open spec/ pull requests`; it is not a finding
+and does not lift any exit code. The dimension processes each returned
+PR independently; a PR MAY produce zero or one finding per the
+classification below (never more than one — the classifications are
+mutually exclusive by construction).
 
 #### Per-PR classification
 
