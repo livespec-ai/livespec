@@ -239,6 +239,15 @@ supervisor_entry_files = [
     "dev-tooling/reap_stale_worktrees.py",
     "dev-tooling/refresh_tenant_repos.py",
 ]
+# These are the three `X | None` public helpers the un-gated railway scan
+# reaches whose `None` is a single ordinary answer, rather than a failed
+# operation.  They are declared under the ratified member-2 escape hatch so
+# the checker continues to validate their annotation and definition site.
+total_absence_returns = [
+    { file = ".claude-plugin/scripts/livespec/parse/git_author.py", function = "parse_preserved_author", reason = "absence of a usable Preserved-Author trailer, not a failure to parse a required value: both no trailer and an unparseable optional trailer mean the commit made no declaration, and callers act on that answer." },
+    { file = "dev-tooling/refresh_tenant_repos_git.py", function = "primary_checkout", reason = "absence of a containing Git checkout, not a failed refresh operation: callers use `None` to select the ordinary non-repository path before any destination mutation." },
+    { file = "dev-tooling/refresh_tenant_repos_identity.py", function = "github_slug", reason = "absence of an exactly-recognized GitHub remote shape, not a URL-parse failure: callers use `None` as the allowlist's ordinary no-match answer and preserve the destination." },
+]
 covered_trees = [
     ".claude-plugin/scripts/livespec",
     ".claude-plugin/scripts/bin",
