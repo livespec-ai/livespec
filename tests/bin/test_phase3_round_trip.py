@@ -43,6 +43,7 @@ import time
 from pathlib import Path
 
 import pytest
+from livespec.doctor.static.copier_template_workflow_coverage import REQUIRED_WORKFLOW_FILES
 
 __all__: list[str] = []
 
@@ -57,19 +58,8 @@ _PRUNE_HISTORY_WRAPPER = _BIN_DIR / "prune_history.py"
 _DOCTOR_STATIC_WRAPPER = _BIN_DIR / "doctor_static.py"
 
 
-_REQUIRED_WORKFLOW_FILES: tuple[str, ...] = (
-    "auto-enable-merge.yml",
-    "bump-pin-from-dispatch.yml",
-    "ci.yml",
-    "copier-update-drift.yml",
-    "disarm-on-hold-label.yml",
-    "pin-freshness.yml",
-    "release-dispatch.yml",
-)
-
-
 def _seed_required_workflow_files(*, project_root: Path) -> None:
-    """Create the six required `.github/workflows/` files in `project_root`.
+    """Create the required `.github/workflows/` files in `project_root`.
 
     Mirrors `tests/e2e/fake_claude.py.seed_required_workflow_files`
     so the post-step doctor passes per the
@@ -77,7 +67,7 @@ def _seed_required_workflow_files(*, project_root: Path) -> None:
     """
     workflows_dir = project_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
-    for name in _REQUIRED_WORKFLOW_FILES:
+    for name in REQUIRED_WORKFLOW_FILES:
         _ = (workflows_dir / name).write_text(
             "# round-trip fixture workflow stub\n",
             encoding="utf-8",

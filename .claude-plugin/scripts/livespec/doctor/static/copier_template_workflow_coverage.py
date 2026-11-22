@@ -34,12 +34,11 @@ consumer's `.github/workflows/`. Each fail finding names the
 specific missing file(s) and directs the user to run
 `copier update --vcs-ref=master` to re-sync from the template.
 
-The required-file list is hard-coded in this module per the v1
-contract clause: "for v1, the doctor invariant MAY hard-code
-the list and rely on PR review to catch drift". A paired
-enforcement-suite check in `livespec-dev-tooling` will catch
-drift between the contract list and the hard-coded list once
-that sibling propose-change lands.
+`REQUIRED_WORKFLOW_FILES` is the shared projection of the
+canonical list in `non-functional-requirements.md`. Its paired
+test reads that specification list directly, so a contract-list
+change cannot silently diverge from the invariant or its test
+fixture helpers.
 
 When `.github/workflows/` is absent entirely the check fires a
 single `fail` finding naming every required file, since the
@@ -49,6 +48,9 @@ identical to the
 """
 
 from __future__ import annotations
+
+import re
+from pathlib import Path
 
 from returns.io import IOResult, IOSuccess
 
@@ -64,14 +66,40 @@ SLUG: CheckId = CheckId("doctor-copier-template-workflow-coverage")
 
 
 REQUIRED_WORKFLOW_FILES: tuple[str, ...] = (
-    "auto-enable-merge.yml",
-    "bump-pin-from-dispatch.yml",
     "ci.yml",
     "copier-update-drift.yml",
+    "auto-enable-merge.yml",
     "disarm-on-hold-label.yml",
+    "bump-pin-from-dispatch.yml",
     "pin-freshness.yml",
     "release-dispatch.yml",
+    "release-park.yml",
 )
+
+_COPIER_TEMPLATE_SECTION = "### Shared content sync — copier template"
+_COPIER_TEMPLATE_LIST_END = "\n\nThe list is EXHAUSTIVE"
+_WORKFLOW_BULLET = re.compile(r"^- `([^`]+\.yml)` —", flags=re.MULTILINE)
+_CANONICAL_SPEC_PATH = (
+    Path(__file__).resolve().parents[5] / "SPECIFICATION" / "non-functional-requirements.md"
+)
+
+
+def _required_workflow_files() -> tuple[str, ...]:
+    """Read the canonical copier workflow list when the core spec is available.
+
+    Installed plugin artifacts ship scripts but not the core specification tree,
+    so their runtime uses the paired, test-verified projection. Source checkouts
+    read the specification on every invariant run, making a local contract edit
+    immediately change the required consumer workflow set.
+    """
+    if not _CANONICAL_SPEC_PATH.is_file():  # pragma: no cover - packaged-plugin path
+        return REQUIRED_WORKFLOW_FILES
+    spec_text = _CANONICAL_SPEC_PATH.read_text(encoding="utf-8")
+    section = spec_text.split(_COPIER_TEMPLATE_SECTION, maxsplit=1)[1].split(
+        _COPIER_TEMPLATE_LIST_END,
+        maxsplit=1,
+    )[0]
+    return tuple(_WORKFLOW_BULLET.findall(section))
 
 
 def _pass(*, ctx: DoctorContext, message: str) -> Finding:
@@ -134,6 +162,7 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
     naming the missing files and directing the user to
     `copier update --vcs-ref=master`.
     """
+    required_workflow_files = _required_workflow_files()
     copier_answers = ctx.project_root / ".copier-answers.yml"
     if not copier_answers.exists():
         return _skipped(
@@ -148,7 +177,7 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
         )
     workflows_dir = ctx.project_root / ".github" / "workflows"
     if not workflows_dir.is_dir():
-        missing = list(REQUIRED_WORKFLOW_FILES)
+        missing = list(required_workflow_files)
         missing_joined = ", ".join(missing)
         return _fail(
             ctx=ctx,
@@ -163,13 +192,13 @@ def _evaluate(*, ctx: DoctorContext) -> Finding:
             ),
         )
     present_names = {entry.name for entry in workflows_dir.iterdir() if entry.is_file()}
-    missing = [name for name in REQUIRED_WORKFLOW_FILES if name not in present_names]
+    missing = [name for name in required_workflow_files if name not in present_names]
     if not missing:
         return _pass(
             ctx=ctx,
             message=(
                 f"copier-template-workflow-coverage: all "
-                f"{len(REQUIRED_WORKFLOW_FILES)} required workflow file(s) "
+                f"{len(required_workflow_files)} required workflow file(s) "
                 f"are present in `.github/workflows/`"
             ),
         )

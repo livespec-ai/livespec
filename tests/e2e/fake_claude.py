@@ -26,6 +26,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from livespec.doctor.static.copier_template_workflow_coverage import REQUIRED_WORKFLOW_FILES
+
 __all__ = [
     "critique",
     "doctor_static",
@@ -39,19 +41,8 @@ __all__ = [
 # _command_from_prompt_file and _HARNESS_COMMAND_PATTERN are private helpers (not in __all__).
 
 
-_REQUIRED_WORKFLOW_FILES: tuple[str, ...] = (
-    "auto-enable-merge.yml",
-    "bump-pin-from-dispatch.yml",
-    "ci.yml",
-    "copier-update-drift.yml",
-    "disarm-on-hold-label.yml",
-    "pin-freshness.yml",
-    "release-dispatch.yml",
-)
-
-
 def seed_required_workflow_files(*, project_root: Path) -> None:
-    """Create the six required `.github/workflows/` files in `project_root`.
+    """Create the required `.github/workflows/` files in `project_root`.
 
     Per the copier-template-workflow-coverage doctor invariant
     (contracts.md), every
@@ -63,7 +54,7 @@ def seed_required_workflow_files(*, project_root: Path) -> None:
     """
     workflows_dir = project_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
-    for name in _REQUIRED_WORKFLOW_FILES:
+    for name in REQUIRED_WORKFLOW_FILES:
         path = workflows_dir / name
         if not path.exists():
             _ = path.write_text("# e2e fixture workflow stub\n", encoding="utf-8")
