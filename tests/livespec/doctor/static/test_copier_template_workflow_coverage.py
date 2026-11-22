@@ -41,6 +41,7 @@ its own root without the marker to exercise the skip path.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
 from livespec.context import DoctorContext
@@ -52,6 +53,19 @@ from livespec.schemas.dataclasses.finding import Finding
 from returns.io import IOSuccess
 
 __all__: list[str] = []
+
+
+def _workflow_files_enumerated_by_copier_template_spec() -> tuple[str, ...]:
+    """Read the required workflow names from the copier-template spec bullets."""
+    spec_path = (
+        Path(__file__).resolve().parents[4] / "SPECIFICATION" / "non-functional-requirements.md"
+    )
+    section = (
+        spec_path.read_text(encoding="utf-8")
+        .split("### Shared content sync — copier template", maxsplit=1)[1]
+        .split("\n\nThe list is EXHAUSTIVE", maxsplit=1)[0]
+    )
+    return tuple(re.findall(r"^- `([^`]+\.yml)` —", section, flags=re.MULTILINE))
 
 
 def _seed_project(*, tmp_path: Path) -> tuple[Path, Path]:
@@ -85,21 +99,12 @@ def _seed_workflows(*, project_root: Path, names: tuple[str, ...]) -> None:
 
 
 def test_required_workflow_files_enumerates_the_canonical_entries() -> None:
-    """REQUIRED_WORKFLOW_FILES matches the canonical contracts.md list.
+    """REQUIRED_WORKFLOW_FILES matches the copier-template spec bullet list.
 
-    The enumerated files are pinned here as a contract regression guard. If
-    the contract list ever drifts the test fails loudly so the
-    drift is caught at PR review.
+    The doctor invariant's required list is derived from this authoritative
+    specification section, rather than a duplicate test-local tuple.
     """
-    assert REQUIRED_WORKFLOW_FILES == (
-        "auto-enable-merge.yml",
-        "bump-pin-from-dispatch.yml",
-        "ci.yml",
-        "copier-update-drift.yml",
-        "disarm-on-hold-label.yml",
-        "pin-freshness.yml",
-        "release-dispatch.yml",
-    )
+    assert REQUIRED_WORKFLOW_FILES == _workflow_files_enumerated_by_copier_template_spec()
 
 
 def test_copier_template_workflow_coverage_passes_when_every_required_file_present(
@@ -119,6 +124,34 @@ def test_copier_template_workflow_coverage_passes_when_every_required_file_prese
             f"copier-template-workflow-coverage: all "
             f"{len(REQUIRED_WORKFLOW_FILES)} required workflow file(s) "
             f"are present in `.github/workflows/`"
+        ),
+        path=None,
+        line=None,
+        spec_root=str(spec_root),
+    )
+    assert result == IOSuccess(expected)
+
+
+def test_copier_template_workflow_coverage_fails_when_release_park_is_missing(
+    *,
+    tmp_path: Path,
+) -> None:
+    """A copier consumer missing the spec-listed release park must fail."""
+    project_root, spec_root = _seed_project(tmp_path=tmp_path)
+    _seed_workflows(project_root=project_root, names=REQUIRED_WORKFLOW_FILES)
+
+    ctx = DoctorContext(project_root=project_root, spec_root=spec_root)
+    result = copier_template_workflow_coverage.run(ctx=ctx)
+    expected = Finding(
+        check_id="doctor-copier-template-workflow-coverage",
+        status="fail",
+        message=(
+            "copier-template-workflow-coverage: "
+            "1 required workflow file(s) missing from "
+            "`.github/workflows/`: release-park.yml. Corrective action: run "
+            "`copier update --vcs-ref=master` to re-sync the copier template (see "
+            '`non-functional-requirements.md` §"Shared content sync — copier template" for '
+            "the canonical required-file list)."
         ),
         path=None,
         line=None,
