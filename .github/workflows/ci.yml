@@ -287,6 +287,7 @@ jobs:
           echo "skip=${skip}" >> "$GITHUB_OUTPUT"
 
   check-python:
+    timeout-minutes: 30
     name: ${{ matrix.target }}
     # Routing per the header block: CI_RUNNER_LABELS when set, hosted capacity
     # when absent. The fallback MUST name a hosted label — see the header for
@@ -413,6 +414,7 @@ jobs:
   # dedups them locally. Before this job existed both legs ran the full suite
   # on separate runners; now the suite runs ONCE.
   check-per-file-coverage:
+    timeout-minutes: 30
     name: check-per-file-coverage
     # Coverage reads CI_COVERAGE_RUNNER_LABELS first (see the header), so
     # CI_RUNNER_LABELS can send every other job to hosted capacity while
@@ -496,6 +498,7 @@ jobs:
   # regresses, the recipe's else-branch runs the suite standalone — slower,
   # never wrong.
   check-coverage:
+    timeout-minutes: 30
     name: ${{ matrix.target }}
     needs: [merge-group-guard, check-per-file-coverage]
     if: ${{ !cancelled() && needs.check-per-file-coverage.result == 'success' && needs.merge-group-guard.outputs.skip != 'true' }}
@@ -567,6 +570,7 @@ jobs:
   # attributes every canonical slug, and the job is gating so (b) requires
   # it in ci-green.needs.
   check-python-batch:
+    timeout-minutes: 30
     name: check-python-batch
     needs: [merge-group-guard]
     if: ${{ !cancelled() && needs.merge-group-guard.outputs.skip != 'true' }}
@@ -630,6 +634,7 @@ jobs:
           fi
 
   check-metadata:
+    timeout-minutes: 30
     name: ${{ matrix.target }}
     # Same baked image and same routing as check-python; the fallback MUST stay
     # in lockstep with that job's and with LIVESPEC_CI_LANE.
@@ -843,6 +848,7 @@ jobs:
   # livespec-dev-tooling-9ywf / y6e2 explains why the pack must be
   # materialized).
   check-metadata-batch:
+    timeout-minutes: 30
     name: check-metadata-batch
     needs: [merge-group-guard]
     if: ${{ !cancelled() && needs.merge-group-guard.outputs.skip != 'true' }}
